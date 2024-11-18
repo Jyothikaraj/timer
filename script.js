@@ -1,3 +1,5 @@
+const submittedNumbers = new Set(); // Ensure this is defined outside the event listener
+
 // Set the offer expiration time (3 hours in milliseconds)
 const offerDuration = 3 * 60 * 60 * 1000;
 let timer;
@@ -6,7 +8,7 @@ let timer;
 async function startOfferTimer() {
   try {
     // Fetch the offer start time (timestamp) from the server
-    const response = await fetch('https://script.google.com/macros/s/AKfycby0bn9hw_DWWqUBkL2QFTPxFivJLunDJ-axPortxxYxbeoPrSm7P2sT1bZadFHw1IhK/exec?action=getTimestamp');
+    const response = await fetch('https://script.google.com/macros/s/AKfycbxApYSpZA7ereAtn-Wd3ZHuJiafk4s4eWIXOLEG8NHHTc9nOZ1_k-K11w4wlrjxtrd5/exec?action=getTimestamp');
     const result = await response.json();
 
     if (result.success) {
@@ -53,5 +55,66 @@ async function startOfferTimer() {
     document.getElementById('timer').innerText = "Error loading timer.";
   }
 }
+// Handle offer claim
+document.getElementById('claim-offer-btn').addEventListener('click', function() {
+    const name = document.getElementById('name').value;
+    const phoneNumber = document.getElementById('phoneNumber').value;
+    const email = document.getElementById('email').value;
+  
+    if (!name || !phoneNumber || !email) {
+      alert("Please fill in all fields.");
+      return;
+    }
+    console.log(name, phoneNumber, email); // Debugging: Check if form values are captured
+    
+    // Validate phone number format (e.g., 123-456-7890)
+    const phonePattern = /^\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}$/;
+    if (!phonePattern.test(phoneNumber)) {
+      alert("Invalid phone number format. Please use a valid format (e.g., 123-456-7890).");
+      return;
+    }
 
+    // Check if the phone number was already submitted in this session
+    if (submittedNumbers.has(phoneNumber)) {
+        alert("This phone number has already been used in this session.");
+        return;
+    }
 
+    const formData = new URLSearchParams();
+    formData.append('name', name);
+    formData.append('phoneNumber', phoneNumber);
+    formData.append('email', email);
+  
+    // Send the form data to the server using Google Apps Script
+    fetch('https://script.google.com/macros/s/AKfycbzG3yLkNmZNOZPri9X9nLITZ6KN6zZf2DaXD-ModW2k-sinmiS5teB4aKS0XXafaLAE/exec', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: formData.toString()
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.result === 'success') {
+        submittedNumbers.add(phoneNumber); // Add to submitted numbers
+        const qrToken = data.token;
+        const qr = new QRious({
+          element: document.getElementById('qr-code'),
+          value: qrToken,
+          size: 200
+        });
+  
+        document.getElementById('qr-code-container').style.display = 'block';
+        alert('Offer claimed! Please scan the QR code.');
+  
+      } else {
+        // Handle errors (e.g., phone number already claimed or in pending status)
+        alert(data.message);
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      alert('An error occurred. Please try again. Error details: ' + error.message);
+
+    });
+  });
